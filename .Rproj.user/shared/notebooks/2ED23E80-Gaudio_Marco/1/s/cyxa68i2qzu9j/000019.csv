@@ -1,0 +1,7 @@
+"0","# importo il dataset"
+"0","dataset <- readr::read_csv(""./data/healthcare_data.csv"")"
+"0",""
+"0","dataset %>% "
+"0","  DT::datatable(options = list("
+"0","          dom = 'Bfrtip',"
+"0","          pageLength = 5))"

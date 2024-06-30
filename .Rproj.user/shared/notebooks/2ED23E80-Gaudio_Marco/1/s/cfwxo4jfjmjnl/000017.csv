@@ -1,0 +1,5 @@
+"0",""
+"0","dataset %>% "
+"0","  dplyr::count(smoking_status) %>% "
+"0","  dplyr::mutate(percentage = paste0(round(n / sum(n), 3)* 100, ""%"")) %>% "
+"0","  DT::datatable()"

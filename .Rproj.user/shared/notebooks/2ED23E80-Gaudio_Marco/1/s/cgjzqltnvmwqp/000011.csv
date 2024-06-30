@@ -1,0 +1,21 @@
+"0",""
+"0","dataset <- dataset %>% "
+"0","  dplyr::mutate("
+"0","    age = as.integer(round(age, digits = 0)),"
+"0","    gender = as.factor(gender),"
+"0","    work_type = as.factor(work_type),"
+"0","    Residence_type = as.factor(Residence_type),"
+"0","    smoking_status = as.factor(smoking_status),"
+"0","    hypertension = as.factor(hypertension),"
+"0","    heart_disease = as.factor(heart_disease),"
+"0","    stroke = as.factor(stroke),"
+"0","    bmi = as.numeric(bmi),"
+"0","    ever_married = as.factor(dplyr::if_else(ever_married == ""Yes"", 1, 0))"
+"0","  ) %>% "
+"0","  dplyr::filter(bmi != ""N/A"","
+"0","                gender != ""Other"") %>% "
+"0","  dplyr::select(-id) "
+"2","Avvertimento: [38;5;238mThere was 1 warning in `dplyr::mutate()`.[39m
+[38;5;238m[36mℹ[38;5;238m In argument: `bmi = as.numeric(bmi)`.[39m
+Caused by warning:
+[33m![39m NA introdotti per coercizione"

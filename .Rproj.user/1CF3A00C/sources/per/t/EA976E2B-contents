@@ -1,0 +1,383 @@
+---
+title: "Statistical Models Project"
+author: "Marco Gaudio"
+date: "`r Sys.Date()`"
+output:
+   rmdformats::readthedown:
+    code_folding: show
+    self_contained: true
+    thumbnails: false
+    lightbox: false
+pkgdown:
+  as_is: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=F, message=F}
+library(readr)
+library(tidyverse)
+library(rmdformats)
+library(DT)
+library(pROC)
+library(caret)
+library(MASS)
+```
+
+# Dataset
+
+Il dataset analizzato in questo progetto è stato scaricato dal sito kaggle.com e contiene varie informazioni di carattere sanitario. In particolare, contiene informazioni utili per la diagnosi di ictus cerebrale.
+
+
+
+```{r, warning=FALSE, message=FALSE}
+# importo il dataset
+dataset <- readr::read_csv("./data/healthcare_data.csv")
+
+dataset %>% 
+  DT::datatable(options = list(
+          dom = 'Bfrtip',
+          pageLength = 5))
+```
+
+Il dataset contiene 12 variabili e `r nrow(dataset)` osservazioni.
+Di seguito un sommario delle diverse variabili nel dataset e della loro natura.
+
+```{r}
+
+dplyr::glimpse(dataset)
+
+```
+
+Di seguito un elenco descrittivo delle 12 variabili icluse nel dataset:
+
+- **id**: identificativo univoco del paziente
+- **gender**: variabile categoriale che indica il sesso del paziente (2 livelli: Male o Female)
+- **age**: variabile quantitativa che indica l'età del paziente
+- **hypertension**: variabile binaria che indica se il paziente soffre o meno di ipertensione (1/0)
+- **heart_disease**: variabile binaria che indica se il paziente soffre o meno di malattie cardiache (1/0)
+- **ever_married**: variabile binaria che indica se il paziente è mai stato sposato (Yes/no)
+- **work_type**: variabile categoriale che indica il tipo di lavoro svolto dal paziente (5 livelli: Govt_job,
+  Never_worked, Private, Self-employed, children)
+- **Residence_type**: variabile categoriale che indica la zona di residenza del paziente (2 livelli: Rural, Urban)
+- **avg_glucose_level**: variabile quantitativa che indica il livello medio di glucosio nel sangue
+- **bmi**: Body Mass Index, variabile quantitativa che rappresenta l'indice di massa corporea del paziente
+- **smoking_status**: variabile categoriale che indica se un paziente fuma o meno, o se ha fumato in passato (4   
+  livelli: Unknown, formerly smoked, never smoked, smokes)
+- **stroke**: variabile binaria che indica se il paziente ha avuto ictus cerebrale o meno (1/0)
+
+## Data manipulation
+Per ottenere dei risultati più coerenti si effettuano alcune operazioni sulle variabili presenti nel dataset, in particolare:
+
+- la variabile *age* presenta dei valori con virgola per le età molto basse, perciò si arrotondano i valori
+  all'intero più vicino;
+
+- le variabili definite come *character* e quelle binarie vengono trasformate in *factor* (e.g., gender,
+  work_type, Residence_type, stroke, ecc..)
+
+- Alcune osservazioni contenenti valori NA per la variabile *bmi* vengono filtrate fuori dal dataset
+
+
+```{r, message=F, warning=F}
+
+dataset <- dataset %>% 
+  dplyr::mutate(
+    age = as.integer(round(age, digits = 0)),
+    gender = as.factor(gender),
+    work_type = as.factor(work_type),
+    Residence_type = as.factor(Residence_type),
+    smoking_status = as.factor(smoking_status),
+    hypertension = as.factor(hypertension),
+    heart_disease = as.factor(heart_disease),
+    stroke = as.factor(stroke),
+    bmi = as.numeric(bmi),
+    ever_married = as.factor(dplyr::if_else(ever_married == "Yes", 1, 0))
+  ) %>% 
+  dplyr::filter(bmi != "N/A",
+                gender != "Other") %>% 
+  dplyr::select(-id) 
+
+```
+
+## Analisi distribuzioni delle variabili
+
+I grafici seguenti mostrano le distribuzioni delle osservazioni per ogni variabile oggetto di studio.
+
+```{r, message=F, warning=F}
+
+to_plot <- dataset %>% 
+  dplyr::select(-c(age, hypertension, heart_disease, avg_glucose_level, bmi))
+
+ggplot(tidyr::gather(to_plot), aes(value)) + 
+  geom_histogram(bins = 10, stat = "count") + 
+  facet_wrap(~key, scales = 'free_x') +
+   scale_x_discrete(label=function(x) abbreviate(x, minlength=7))
+```
+
+```{r,echo=FALSE, warning=F, message=F}
+to_plot2 <- dataset %>% 
+  dplyr::select(age, avg_glucose_level, bmi)
+
+ggplot(tidyr::gather(to_plot2), aes(value)) + 
+  geom_histogram() + 
+  facet_wrap(~key, scales = 'free_x') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+L'obbiettivo del progetto è quello di capire quali sono le variabili tra quelle a disposizione che hanno effetto sulla possibilità di andare incontro ad un ictus cerebrale (colonna stroke), che rappresenta quindi la probabilità di successo della variabile risposta binaria.
+
+I passaggi da seguire per effettuare una analisi nel miglior modo possibile sono i seguenti:
+
+- **Specificare il modello**: Scegliere la distribuzione della risposta che meglio rappresenta il fenomeno di interesse, la funzione link più appropriata, le variabili esplicative.
+
+- **Stima dei parametri**: Utilizzare metodi di stima per i parametri del modello e condurre test di ipotesi.
+
+- **Valutare la bontà del modello**:  Usare strumenti per misurare l’aderenza del modello ai dati e la sua capacità previsionale e classificatoria.
+
+- **Utilizzo del modello**:  interpretare i coefficienti che misurano l’effetto delle variabili esplicative per descrivere le relazioni esistenti tra esse e il fenomeno di interesse, e usare il modello per fini previsivi e di classificazione.
+
+
+# Specificazione del modello
+
+La variabile risposta oggetto dell'analisi è rappresentata nella colonna **Stroke** ed indica se il paziente ha avuto o meno un ictus cerebrale. Trattandosi di una variabile binaria (può assumere solo due valori, 1 se il paziente ha riscontrato un ictus cerebrale, 0 altrimenti) il modello da utilizzare è un modello di **regressione logistica**, utilizzando un link logit.
+
+Per procedere alla selezioni delle variabili all'interno del modello si procede con un processo di **Backward selection**, ovvero si parte dal modello contenente tutte le variabili esplicative presenti nel dataset e ad ogni step si procede ad eliminare quelle variabili a cui corrisponde un minor effetto (p-value più elevato). Si procede fin quando ogni ulteriore riduzione di variabili porta ad una riduzione del fitting del modello.
+
+```{r, warning=F, message=F}
+# definisco un modello che contiene tutte le variabili presenti nel dataset
+attach(dataset)
+full_model <- glm(stroke ~ ., binomial, data = dataset)
+summary(full_model)
+
+```
+
+Il modello contenente tutte le variabili all'interno del dataset suggerisce che quelle che hanno minor effetto sulla variabile risposta per via dell'elevato valore del p-value sono: *gender*, *Residence_type*, *work_type*, *bmi* e *smoking_status*. 
+Tuttavia, sembra poco coerente che la variabile *smoking_status* non abbia effetto sulla possibilità di andare incontro ad ictus cerebrale. Si noti infatti che è presente un livello di smoking status che assume il valore di *Unknown*, ciò potrebbe causare una alterazione dei risultati ottenuti. Indaghiamo maggiormente su questa variabile.
+
+```{r}
+
+dataset %>% 
+  dplyr::count(smoking_status) %>% 
+  dplyr::mutate(percentage = paste0(round(n / sum(n), 3)* 100, "%")) %>% 
+  DT::datatable(options = list(
+          dom = 'Bfrtip',
+          pageLength = 5))
+
+
+```
+
+Si noti come il 30.2% delle osservazioni contiene un valore *Unknown* per la variabile *smoking_status*. Come detto in precedenza, questa caratteristica del dataset potrebbe portare a valutazioni errate sul reale effetto della covariata sulla variabile risposta. Perciò, data la natura didattica di questo lavoro, si decide di escludere la variabile dal dataset in modo da procedere con l'analisi, fermo restando che nella realtà tale variabile con molte probabilità potrebbe avere un effetto di non poco conto nella manifestazione della malattia.
+Inoltre, si esclude anche le variabile *Residence_type* per osservare il comportamento delle altre variabili.
+
+```{r}
+
+first_model <- glm(stroke ~ gender + age + hypertension + heart_disease + ever_married + work_type +
+                     avg_glucose_level + bmi, binomial, data = dataset)
+summary(first_model)
+
+```
+
+La rimozione delle variabili *smoking_status* e *Residence_type* non sembra avere incidenza sull'effetto delle altre variabili che risultavano non esplicative nel modello full. Si procede con la rimozione della variabile *work_type*.
+
+```{r}
+
+second_model <- glm(stroke ~ gender + age + hypertension + heart_disease + ever_married +
+                     avg_glucose_level + bmi, binomial, data = dataset)
+summary(second_model)
+
+```
+La situazione non sembra migliorare per le variabili con p-value molto alto, si procede perciò alla rimozione delle variabili *gender* e *ever_married*.
+
+```{r}
+
+third_model <- glm(stroke ~ age + hypertension + heart_disease +
+                     avg_glucose_level + bmi, binomial, data = dataset)
+summary(third_model)
+
+```
+Eliminando le variabili citate sopra, possiamo notare come il p-value della variabile *heart_disease* sia leggermente diminuito, risultando in un livello di significatività della variabile più elevato. Tuttavia, il p-value della variabile *bmi* non sembra subire variazioni. Si prova quindi a definire dei range di valori della variabile bmi per studiarne l'effetto.
+
+I range di normalità del BMI sono definiti in base al peso, all'altezza e al genere di un individuo. Tuttavia, non avendo a disposizione tali informazioni, si procede alla suddivisione in base ad una classificazione standard:
+
+- bmi < 16: underweight
+- 16 <= bmi <= 25: healthy
+- 25 < bmi <= 30: overweight
+- bmi > 30: obese
+
+```{r}
+
+dataset_cat <- dataset %>% 
+  dplyr::mutate(
+    bmi_cat = dplyr::if_else(bmi < 16, "underweight", 
+                             dplyr::if_else(bmi >= 16 & bmi <= 25, "healthy", 
+                                            dplyr::if_else(bmi > 16 & bmi <= 25, "overweight", "obese")
+                                            )
+                             )
+  )
+
+
+```
+
+
+Analizziamo ora un modello con la variabile categoriale *bmi_cat* al posto della variabile numerica *bmi*.
+
+
+```{r}
+
+fourth_model <- glm(stroke ~ age + hypertension + heart_disease +
+                     avg_glucose_level + bmi_cat, binomial, data = dataset_cat)
+summary(fourth_model)
+
+```
+
+Si noti come la costruzione di diverse categoria non ha portato a risultati diversi per quanto riguarda la presenza di effetto del BMI sulla variabile risposta. Tuttavia, bisogna ricordare che nella realtà la costruzione delle categorie dipende da diversi fattori che in questa analisi non sono state considerate per mancanza di informazioni. Ciò porta a pensare che non è da escludere completamente un effetto del BMI sulla possibilità di manifestare un ictus cerebrale.
+Ai fini dell'analisi, procediamo con la versione finale del modello come segue.
+
+
+```{r}
+
+final_model <- glm(stroke ~ age + hypertension + heart_disease +
+                     avg_glucose_level, binomial, data = dataset_cat)
+summary(final_model)
+
+
+```
+
+Si noti il fatto che esiste una funzione del pacchetto **MASS** che permette di eseguire i vari step della backward selection in un unico comando. Tuttavia, si è deciso di procedere con la selezione step-by-step per commentare i risultati e evidenziare eventuali anomalie nei dati (e.g., smoking_status)
+
+```{r, warning=F, message=FALSE}
+MASS::stepAIC(full_model, direction="backward", data=dataset)
+```
+
+Utilizziamo l'output fornito dalla funzione *stepAIC()* per commentare il criterio di decisione del modello finale, ovvero il **Criterio di Informazione di Akaike (AIC)**.
+La regola di decisione ci suggerisce di utilizzare il modello che presenta valore più piccolo di AIC. 
+Il modello finale ottenuto presenta un AIC pari a 1384.64 che risulta essere minore di tutti gli altri modelli presi in considerazione.
+
+# Bontà del modello
+## Confusion Matrix
+Si utilizza la libreria **caret** per valutare la bontà del modello. 
+Si noti che la soglia per la probabilità stimata (cut-off) è stata fissata a 45%. Ciò vuol dire che se la probabilità stimata dal modello per una unità è maggiore di 0.45, allora il modello prevede un successo, in caso contrario il modello prevede un insuccesso.
+```{r, warning=F, message=F}
+pred <- predict(final_model,type="response")
+pred0.45 <- ifelse(pred<=0.45,0,1)
+xtab <- table(pred0.45, stroke)
+cm <- caret::confusionMatrix(xtab)
+cm
+```
+Si noti che il modello risulta avere una elevata accuratezza (circa 95%) ed un'ottima sensitività.
+Per indagare ulteriormente la bontà del modello viene calcolata la curva di ROC.
+
+
+## Curva di ROC
+La curva di ROC mostra le probabilità dei veri positivi e dei falsi negativi per ogni possibile cut-off.
+```{r, warning=F, message=F}
+pred <- predict(final_model,type="response")  
+roc(stroke,pred)
+rocplot<-roc(stroke~pred, col = "red", plot=TRUE, print.auc=T, legacy.axes = T,
+              main = "ROC curve")
+```
+Come è possibile notare dal grafico, l'AUC (Area Under the Curve) è dell'85%, ciò comporta un elevata accuratezza del modello oggetto di studio.
+
+# Stima dei parametri
+
+Dal summary del modello finale selezionato, possiamo notare che tutte le variabili incluse hanno un effetto sulla possibilità di avere un ictus cerebrale (almeno al 5% di significatività).
+
+
+```{r}
+summary(final_model)
+betas <- coef(final_model)
+```
+In particolare:
+
+- la variabile *age* presenta un Beta positivo (`r round(betas[2],2)`). Ciò vuol dire che l'aumento dell'età ha un effetto positivo sulla probabilità di ictus cerebrale
+
+- la variabile *hypertension1* ha un Beta positivo (`r round(betas[3],2)`), quindi la probabilità di avere un ictus aumenta se il soggetto è affetto da ipertensione
+
+- la variabile *heart_disease1* ha un Beta positivo (`r round(betas[4],2)`) e presenta un effetto analogo a quello delle precedenti variabili
+
+- la variabile *avg_glucose_level* ha ha un Beta positivo (`r round(betas[5],2)`), perciò un aumento del livello di glucosio nel sangue aumenta la probabilità di ictus
+
+Calcoliamo gli Odd Ratios e i relativi intervalli di confidenza per poter commentare nel dettaglio l'effetto delle covariate sulla variabile risposta.
+```{r}
+OR <- round(exp(cbind(coef(final_model), confint.default(final_model))),4) 
+```
+
+Ricordiamo che:
+
+- se l'OR = 1 non vi è differenza nei due gruppi, quindi non c'è effetto della covariata sulla probabilità-
+- se l'OR > 1 l'odd di un gruppo è maggiore dell'odd del gruppo di riferimento, e si può calcolare l'incremento percentuale come: $$(e^B - 1) * 100$$
+- se l'OR < 1 l'odd di un gruppo è minore dell'odd del gruppo di riferimento, e si può calcolare la riduzione percentuale come: $$(1     - e^B) * 100$$
+
+Tutti gli OR hanno valore maggiore di 1, quindi ci aspettiamo un incremento percentuale della variabile risposta all'aumentare unitario di ogni covariata quantitativa.
+
+```{r}
+# calcoliamo le percentuali nella tabella
+
+data.frame(OR) %>% 
+  tibble::tibble() %>% 
+  dplyr::rename(coeff = V1,
+                lower = X2.5..,
+                upper = X97.5..) %>%
+  slice(-1) %>% 
+  dplyr::mutate(
+    Xj = c("age", "hypertension1", "heart_disease1", "avg_glucose_level")
+  ) %>% 
+  dplyr::relocate(Xj) %>% 
+  dplyr::mutate(
+    perc_increment = round((coeff - 1) * 100,4)
+  ) %>% 
+  DT::datatable(options = list(
+          dom = 'Bfrtip',
+          pageLength = 5))
+
+```
+
+- Un aumento unitario della variabile *age* porta ad un aumento di propensione del rischio di incorrere in ictus   cerebrale di circa il 6.98%.
+- La propensione di incorrere in ictus cerebrale è di circa 71.53% volte maggiore in soggetti che soffrono di      ipertensione e di 49.82% in chi ha avuto patologie cardiache.
+- Un aumento unitario del livello di glucosio medio nel sangue comporta un aumento di circa 0.48% della            propensione allo sviluppo della malattia. 
+
+# Utilizzo del modello
+Come ultimo step di questo progetto, è possibile utilizzare il modello per calcolare le probabilità stimate, oppure per calcolare la propensione di incorrere in ictus cerebrale di un determinato paziente
+
+```{r, message=F, warning=F}
+
+# tutte le probabilità stimate
+pro <- fitted(final_model)
+
+# probabilità stimata per un paziente sano 
+predict_paziente_sano <- data.frame(age = 25,
+                                    hypertension = as.factor("0"),
+                                    heart_disease = as.factor("0"), 
+                                    avg_glucose_level = 100)
+
+prob_paziente_sano <- round(predict(final_model, type="response", predict_paziente_sano), 4)
+
+# probabilità stimata per un paziente a rischio
+
+predict_paziente_a_rischio <- data.frame(age = 75,
+                                    hypertension = as.factor("1"),
+                                    heart_disease = as.factor("1"), 
+                                    avg_glucose_level = 250)
+
+prob_paziente_a_rischio <- round(predict(final_model, type="response", predict_paziente_a_rischio), 4)
+
+
+tibble(paziente = c("Sano", "A rischio"),
+       età = c(25, 75),
+       ipertensione = c("NO", "SI"),
+       malattie_cardiache = c("NO", "SI"),
+       avg_glucosio = c("100", "250"),
+       prob_stimate = c(prob_paziente_sano, prob_paziente_a_rischio) * 100) %>% 
+  DT::datatable(options = list(
+          dom = 'Bfrtip',
+          pageLength = 5))
+
+
+```
+
+La tabella mostra le probabilità stimate con il modello costruito in precedenza per due pazienti tipo, uno sano ed uno a rischio ictus cerebrale.
+Si noti come la propensione ad incorrere in ictus cerebrale è molto elevata per il paziente a rischio (circa 39%), mentre è molto bassa per il soggetto sano (0.41%).
+

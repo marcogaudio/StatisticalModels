@@ -1,0 +1,8 @@
+"0","ggplot(tidyr::gather(to_plot), aes(value)) + 
+  geom_histogram(bins = 10, stat = ""count"") + 
+  facet_wrap(~key, scales = 'free_x') +
+   scale_x_discrete(label=function(x) abbreviate(x, minlength=7))
+"
+"2","Avvertimento: attributes are not identical across measure variables;
+they will be dropped"
+"2","Avvertimento: [38;5;238mIgnoring unknown parameters: `binwidth`, `bins`, and `pad`[39m"

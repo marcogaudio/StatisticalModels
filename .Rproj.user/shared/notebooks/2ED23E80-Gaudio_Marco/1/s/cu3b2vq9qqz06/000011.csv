@@ -1,0 +1,220 @@
+"0","# definisco un modello che contiene tutte le variabili presenti nel dataset"
+"0","attach(dataset)"
+"2","I seguenti oggetti sono mascherati da dataset (pos = 4):
+
+    age, avg_glucose_level, bmi, ever_married, gender, heart_disease, hypertension,
+    Residence_type, smoking_status, stroke, work_type
+
+"
+"2","Il seguente oggetto è mascherato da bwt (pos = 8):
+
+    age
+
+"
+"2","Il seguente oggetto è mascherato da bwt (pos = 13):
+
+    age
+
+"
+"2","Il seguente oggetto è mascherato da bwt (pos = 16):
+
+    age
+
+"
+"2","I seguenti oggetti sono mascherati da dataset (pos = 18):
+
+    age, avg_glucose_level, bmi, ever_married, gender, heart_disease, hypertension,
+    Residence_type, smoking_status, stroke, work_type
+
+"
+"2","I seguenti oggetti sono mascherati da dataset (pos = 19):
+
+    age, avg_glucose_level, bmi, ever_married, gender, heart_disease, hypertension,
+    Residence_type, smoking_status, stroke, work_type
+
+"
+"2","I seguenti oggetti sono mascherati da dataset (pos = 20):
+
+    age, avg_glucose_level, bmi, ever_married, gender, heart_disease, hypertension,
+    Residence_type, smoking_status, stroke, work_type
+
+"
+"2","I seguenti oggetti sono mascherati da dataset (pos = 22):
+
+    age, avg_glucose_level, bmi, ever_married, gender, heart_disease, hypertension,
+    Residence_type, smoking_status, stroke, work_type
+
+"
+"0","full_model <- glm(stroke ~ ., binomial, data = dataset)"
+"0","summary(full_model)"
+"1","
+Call:
+"
+"1",""
+"1","glm(formula = stroke ~ ., family = binomial, data = dataset)"
+"1",""
+"1","
+"
+"1","
+Coefficients:
+"
+"1","                          "
+"1","   Estimate"
+"1"," Std. Error"
+"1"," z value"
+"1"," Pr(>|z|)"
+"1","    "
+"1","
+(Intercept)               "
+"1","  -7.359753"
+"1","   1.067329"
+"1","  -6.895"
+"1"," 5.37e-12"
+"1"," ***"
+"1","
+genderMale                "
+"1","  -0.014631"
+"1","   0.154382"
+"1","  -0.095"
+"1"," 0.924494"
+"1","    "
+"1","
+age                       "
+"1","   0.073481"
+"1","   0.006347"
+"1","  11.578"
+"1","  < 2e-16"
+"1"," ***"
+"1","
+hypertension1             "
+"1","   0.524857"
+"1","   0.175023"
+"1","   2.999"
+"1"," 0.002711"
+"1"," ** "
+"1","
+heart_disease1            "
+"1","   0.348764"
+"1","   0.207231"
+"1","   1.683"
+"1"," 0.092380"
+"1"," .  "
+"1","
+ever_married1             "
+"1","  -0.115174"
+"1","   0.247289"
+"1","  -0.466"
+"1"," 0.641395"
+"1","    "
+"1","
+work_typeGovt_job         "
+"1","  -0.681543"
+"1","   1.114149"
+"1","  -0.612"
+"1"," 0.540726"
+"1","    "
+"1","
+work_typeNever_worked     "
+"1","  -9.823383"
+"1"," 308.741627"
+"1","  -0.032"
+"1"," 0.974618"
+"1","    "
+"1","
+work_typePrivate          "
+"1","  -0.520736"
+"1","   1.100277"
+"1","  -0.473"
+"1"," 0.636015"
+"1","    "
+"1","
+work_typeSelf-employed    "
+"1","  -0.945777"
+"1","   1.118908"
+"1","  -0.845"
+"1"," 0.397961"
+"1","    "
+"1","
+Residence_typeUrban       "
+"1","   0.004512"
+"1","   0.149987"
+"1","   0.030"
+"1"," 0.976004"
+"1","    "
+"1","
+avg_glucose_level         "
+"1","   0.004652"
+"1","   0.001294"
+"1","   3.595"
+"1"," 0.000324"
+"1"," ***"
+"1","
+bmi                       "
+"1","   0.004062"
+"1","   0.011880"
+"1","   0.342"
+"1"," 0.732393"
+"1","    "
+"1","
+smoking_statusnever smoked"
+"1","  -0.067225"
+"1","   0.188630"
+"1","  -0.356"
+"1"," 0.721553"
+"1","    "
+"1","
+smoking_statussmokes      "
+"1","   0.313917"
+"1","   0.229471"
+"1","   1.368"
+"1"," 0.171311"
+"1","    "
+"1","
+smoking_statusUnknown     "
+"1","  -0.275334"
+"1","   0.247112"
+"1","  -1.114"
+"1"," 0.265190"
+"1","    "
+"1","
+"
+"1","---
+Signif. codes:  "
+"1",""
+"1","0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1"
+"1","
+"
+"1","
+(Dispersion parameter for "
+"1",""
+"1","binomial"
+"1",""
+"1"," family taken to be "
+"1",""
+"1","1"
+"1",""
+"1",")
+
+"
+"1",""
+"1","    Null deviance: 1728.3  on 4907  degrees of freedom
+"
+"1",""
+"1","Residual deviance: 1363.2  on 4892  degrees of freedom
+"
+"1","AIC: "
+"1",""
+"1","1395.2"
+"1",""
+"1","
+
+"
+"1",""
+"1","Number of Fisher Scoring iterations: "
+"1",""
+"1","14"
+"1",""
+"1","
+"
+"1","
+"
